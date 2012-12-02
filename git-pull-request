@@ -2,7 +2,7 @@
 
 """git pull-request
 
-Automatically check out github pull requests into their own branch.
+Automatically check out github pull requests
 
 Usage:
 
@@ -16,6 +16,9 @@ Options:
     -r <repo>, --repo <repo>
         Use this github repo instead of the 'remote origin' or 'github.repo'
         git config settings. Needs to be in "user/repository" form
+
+    -b, --branch
+        pull request into a new branch
 
 Copyright (C) 2011 by Andreas Gohr <andi@splitbrain.org>
 
@@ -46,10 +49,11 @@ import re
 
 def main():
     repo, remote = '', None
+    domerge = True
 
     # parse command line options
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hr:", ["help","repo:"])
+        opts, args = getopt.getopt(sys.argv[1:], "hbr:", ["help","branch", "repo:"])
     except getopt.error, msg:
         print msg
         print "for help use --help"
@@ -64,6 +68,8 @@ def main():
               repo = a
             else:
               remote = a
+        if o in ("-b", "--branch"):
+            domerge = False
 
     if remote is None and repo == '':
         remote = 'origin'
@@ -91,7 +97,7 @@ def main():
 
     # process arguments
     if len(args):
-        ret = fetch(repo, args[0])
+        ret = fetch(repo, args[0], domerge)
     else:
         ret = show(repo)
 
@@ -135,7 +141,7 @@ def show(repo):
     return 0
 
 
-def fetch(repo, pullreq):
+def fetch(repo, pullreq, domerge):
 
     print "loading pull request info for request %s..." % (pullreq)
     print
@@ -151,26 +157,33 @@ def fetch(repo, pullreq):
     pr = data
     display(pr)
 
-    local  = 'pull-request-%s' % (pullreq)
     branch = os.popen("git branch|grep '^*'|awk '{print $2}'").read().strip();
-    if(branch != pr['base']['ref'] and branch != local):
+    if(branch != pr['base']['ref']):
         print color_text("The pull request is based on branch '%s' but you're on '%s' currently" % \
             (pr['base']['ref'], branch),'red',True)
         return 4
 
-    ret = os.system('git branch %s' % (local));
-    ret = os.system('git checkout %s' % (local));
-    if(ret != 0):
-        print "Failed to create/switch branch"
-        return 5
+    if (domerge == False):
+        local  = 'pull-request-%s' % (pullreq)
+        if(branch != local):
+            ret = os.system('git branch %s' % (local));
+            ret = os.system('git checkout %s' % (local));
+            if(ret != 0):
+                print "Failed to create/switch branch"
+                return 5
 
     print "pulling from %s (%s)" % (pr['head']['repo']['git_url'], pr['head']['ref']);
 
     ret = os.system('git pull %s %s' % (pr['head']['repo']['git_url'], pr['head']['ref']));
-
+    if(ret != 0):
+        print color_text("Failed to merge the pull request into %s" % branch, 'red');
+        return 6
     print
-    print color_text("done. examine changes and merge into master if good",'green');
 
+    if(domerge == False):
+        print color_text("done. Examine changes and merge into master if good",'green');
+    else:
+        print color_text("done. Changes have been merged into %s" % branch,'green');
     return 0
 
 
@@ -197,4 +210,5 @@ def color_text(text, color_name, bold=False):
 
 if __name__ == "__main__":
     main()
+
 
