@@ -20,6 +20,10 @@ Options:
     -b, --branch
         pull request into a new branch
 
+    -t, --to-current-branch
+        ignore the target branch of the pull request. Do the merge to the current
+        branch (or create a branch from the current branch if -b).
+
 Copyright (C) 2011 by Andreas Gohr <andi@splitbrain.org>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -50,10 +54,11 @@ import re
 def main():
     repo, remote = '', None
     domerge = True
+    toCurrentBranch = False
 
     # parse command line options
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hbr:", ["help","branch", "repo:"])
+        opts, args = getopt.getopt(sys.argv[1:], "hbr:t", ["help","branch", "repo:", "to-current-branch"])
     except getopt.error, msg:
         print msg
         print "for help use --help"
@@ -70,6 +75,9 @@ def main():
               remote = a
         if o in ("-b", "--branch"):
             domerge = False
+
+        if o in ("-t", "--to-current-branch"):
+            toCurrentBranch = True
 
     if remote is None and repo == '':
         remote = 'origin'
@@ -97,7 +105,7 @@ def main():
 
     # process arguments
     if len(args):
-        ret = fetch(repo, args[0], domerge)
+        ret = fetch(repo, args[0], domerge, toCurrentBranch)
     else:
         ret = show(repo)
 
@@ -141,7 +149,7 @@ def show(repo):
     return 0
 
 
-def fetch(repo, pullreq, domerge):
+def fetch(repo, pullreq, domerge, toCurrentBranch):
 
     print "loading pull request info for request %s..." % (pullreq)
     print
@@ -158,7 +166,7 @@ def fetch(repo, pullreq, domerge):
     display(pr)
 
     branch = os.popen("git branch|grep '^*'|awk '{print $2}'").read().strip();
-    if(branch != pr['base']['ref']):
+    if(toCurrentBranch == False and branch != pr['base']['ref']):
         print color_text("The pull request is based on branch '%s' but you're on '%s' currently" % \
             (pr['base']['ref'], branch),'red',True)
         return 4
